@@ -1,0 +1,201 @@
+---
+title: "Impact of Transmission Type on Automobile Fuel Consumption (Miles per Gallon)"
+author: "Scott Robertson"
+date: "January 17, 2019"
+output:
+  pdf_document:
+    fig_caption: yes
+  word_document: default
+  html_document:
+    df_print: paged
+---
+```{r environment_prep, echo=FALSE, warning=FALSE, message=FALSE}
+# Installing required packages if not avaliable
+if("dplyr" %in% rownames(installed.packages()) == FALSE){
+      install.packages("dplyr")
+}
+if("ggplot2" %in% rownames(installed.packages()) == FALSE){
+      install.packages("ggplot2")
+}
+if("reshape2" %in% rownames(installed.packages()) == FALSE){
+      install.packages("reshape2")
+}
+if("broom" %in% rownames(installed.packages()) == FALSE){
+      install.packages("broom")
+}
+if("knitr" %in% rownames(installed.packages()) == FALSE){
+      install.packages("knitr")
+}
+if("ggfortify" %in% rownames(installed.packages()) == FALSE){
+      install.packages("ggfortify")
+}
+if("jtools" %in% rownames(installed.packages()) == FALSE){
+      install.packages("jtools")
+}
+if("kableExtra" %in% rownames(installed.packages()) == FALSE){
+      install.packages("kableExtra")
+}
+
+# Load the nessecary packages into environment
+library(dplyr)
+library(ggplot2)
+library(broom)
+library(knitr)
+library(reshape2)
+library(ggfortify)
+library(jtools)
+library(kableExtra)
+
+# Set global parameters
+theme_set(theme_bw())
+
+# Initalize additional functions
+get_lower_tri<-function(cormat){
+    cormat[upper.tri(cormat)] <- NA
+    return(cormat)
+}
+
+get_upper_tri <- function(cormat){
+    cormat[lower.tri(cormat)]<- NA
+    return(cormat)
+  }
+```
+## Executive summary
+The purpose of this paper is to answer two specific questions:
+
+- Is an automatic or manual transmission better for Miles per Gallon(MPG)?; and
+- Quantify the MPG difference between automatic and manual transmissions?
+
+Using regression analysis we can show that a manual transmission is better for MPG. This provides an increase of 1.8 MPG compared to automatic transmission. 
+
+However, the number of cylinders, horsepower and weight have a more statistically significant impact on MPG.
+
+## Data Source
+For the purpose of this analysis we will be using the mtcars datatset which is included in the datasets package.
+```{r data_preperation, echo = FALSE, message = FALSE}
+# Load dataset
+data(mtcars)
+cordata <- mtcars
+
+# Convert a number of variables to factors for easier modelling
+mtcars$cyl  <- factor(mtcars$cyl)
+mtcars$vs   <- factor(mtcars$vs)
+mtcars$gear <- factor(mtcars$gear)
+mtcars$carb <- factor(mtcars$carb)
+mtcars$am   <- factor(mtcars$am,labels=c("Automatic","Manual"))
+```
+This data set contains fuel consumption, design specifications and performance measures for 32 automobiles from 1974-74.
+
+## Exploratory Analysis
+As a start point a piece of exploratory analysis was undertaken to determine if there is a relationship between transmission and MPG. The output of this analysis is in Figure 1 in Appendix A. This box plot shows a clear relationship between the two with manual transmission having a higher average MPG. 
+
+In order to understand and quantify this relationship we will use regression models. As part of the exploratory analysis a correlation matrix was produced to look at any existing relationships between variables in the data set. This matrix is included in Figure 2 in Appendix A. 
+
+Based on this analysis there are a number of highly correlated predictor variables that appear to have a greater impact
+
+## Regression Analysis
+To begin with we create a liner model with mpg as the dependent variable and use all remaining variables as predictors. As we have already identified correlated variables this will require additional work to improve the model. 
+```{r fit_model, echo=FALSE}
+
+fit_all <- lm(mpg ~ ., data = mtcars)
+
+```
+
+```{r fit_all_sum, echo=FALSE}
+
+summ(fit_all)
+
+```
+
+Since none of the coefficients have a p-value less than 0.05 we cannot conclude which variables are more statistically significant.  In order to identify which variables are most significant in determining MPG we will use stepwise selection to identify the best combination of predictor variables to use in our model.
+
+```{r refine_model, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+fit_step <- step(fit_all)
+```
+
+```{r show_new_model, echo=FALSE}
+summ(fit_step)
+```
+
+The new model has 4 variables; cylinders, horsepower, weight and  transmission. The R-squared value of 0.8659 confirms that this model explains about 87% of the variance in MPG. 
+
+The p-values also are statistically significantly because they are less than 0.05. The coefficients conclude that: 
+
+- increasing the number of cylinders to 6 decreases MPG by 3.03
+- increasing the number of cylinders to 8 decreases  MPG by 2.16
+- increasing horsepower by 1 decreases MPG by 0.03
+- increasing weight by 1kg decreases MPG by 2.5
+- manual transmission improves the MPG by 1.81 compared to automatic transmission
+
+## Appendix A - Figures
+
+### Figure 1 - MPG/Transmission Boxplot
+```{r box_plot_1, echo=FALSE, message=FALSE, warning=FALSE}
+# Box plot to show relationship between transmission and MPG
+box <- ggplot(mtcars, aes(x=am, y=mpg, fill=am)) + 
+        geom_boxplot() +
+        labs(title="Plot of mile per gallon by transmission",
+             x="Transmission",
+             y = "Miles per Gallon (mpg)", 
+             caption="Source: Henderson and Velleman (1981),\n Building multiple regression models interactively. Biometrics, 37, 391–411.") +
+        guides(fill=guide_legend(title="Transmission"))
+
+# Print boxplot to console
+print(box)
+```
+
+### Figure 2 - Variable correlation plot
+```{r correlation_plot, echo=FALSE, message=FALSE, warning=FALSE}
+# Correlation matrix to understand relationship between variables
+cormat <- round(cor(cordata),2)
+
+# Use get_upper_tri to extract only the upper half or matrix to avoid duplication
+upper_tri <- get_upper_tri(cormat)
+
+# Melt the correlation matrix
+melted_cormat <- melt(upper_tri, na.rm = TRUE)
+
+# Generate a heatmap from melted correlation matrix
+heatmap <- ggplot(data = melted_cormat, aes(Var2, Var1, fill = value)) +
+        geom_tile(color = "white") +
+        scale_fill_gradient2(low = "blue", 
+                             high = "red", 
+                             mid = "white", 
+                             midpoint = 0, 
+                             limit = c(-1,1), 
+                             space = "Lab",
+                             name="Pearson\nCorrelation") +
+        coord_fixed() + 
+        geom_text(aes(Var2, Var1, label = value), 
+                  color = "black", 
+                  size = 4) +
+        theme(axis.title.x = element_blank(),
+              axis.title.y = element_blank(),
+              panel.grid.major = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              axis.ticks = element_blank(),
+              legend.justification = c(1, 0),
+              legend.position = c(0.6, 0.7),
+              legend.direction = "horizontal") +
+        guides(fill = guide_colorbar(barwidth = 7, 
+                                     barheight = 1,
+                                     title.position = "top", 
+                                     title.hjust = 0.5)) +
+        labs(title="Correlation of numerical variables in dataset",
+             caption="Source: Henderson and Velleman (1981),\n Building multiple regression models interactively. Biometrics, 37, 391–411.")
+
+# Print heatmap to console
+print(heatmap)
+```
+
+### Figure 3 - All Variable Model Diagnostics
+```{r fullmodel_diag, echo=FALSE, warning=FALSE, message=FALSE}
+autoplot(fit_all)
+```
+
+### Figure 4 - Stepwise Algorithm Model Diagnostics
+```{r stepmodel_diag, echo=FALSE, warning=FALSE, message=FALSE}
+autoplot(fit_step)
+```
+
